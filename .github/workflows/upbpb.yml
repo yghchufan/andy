@@ -19,11 +19,12 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true # 允许 Actions 兼容运行
     steps:
       - name: 检出仓库
         uses: actions/checkout@v4
-        
-        # ➕ 新增这一步，显式指定 Node.js 24 环境
+
       - name: 设置 Node.js 环境
         uses: actions/setup-node@v4
         with:
@@ -36,18 +37,14 @@ jobs:
 
       - name: 检查并更新 Worker
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 使用 GitHub Token 认证
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 日志函数
           log() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"; }
-
           log "开始检查更新..."
 
-          # 获取本地版本
           LOCAL_VERSION=$(cat version.txt 2>/dev/null || echo "")
           log "本地版本: ${LOCAL_VERSION:-无}"
 
-          # 获取最新 Release
           log "获取最新 Release 信息..."
           RESPONSE=$(curl -s --retry 3 -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" "$REPO_URL")
           if [ $? -ne 0 ]; then
@@ -55,7 +52,7 @@ jobs:
             exit 1
           fi
 
-          # 遍历整个 release 列表，找到第一个资产（assets）中包含 worker.zip 的正式版本
+          # 使用我们优化后的筛选逻辑
           LATEST_VALID_RELEASE=$(echo "$RESPONSE" | jq '. | map(select(.assets[].name == "'"$TARGET_FILE"'")) | .[0]')
           TAG_NAME=$(echo "$LATEST_VALID_RELEASE" | jq -r '.tag_name')
           DOWNLOAD_URL=$(echo "$LATEST_VALID_RELEASE" | jq -r '.assets[] | select(.name == "'"$TARGET_FILE"'") | .browser_download_url')
@@ -66,14 +63,12 @@ jobs:
           fi
           log "最新版本: $TAG_NAME"
 
-          # 判断是否需要更新
           FORCE_UPDATE=${{ github.event.inputs.force_update || 'false' }}
           if [ "$LOCAL_VERSION" = "$TAG_NAME" ] && [ "$FORCE_UPDATE" != "true" ]; then
             log "已是最新版本，无需更新"
             exit 0
           fi
 
-          # 下载并更新
           log "下载 $TARGET_FILE..."
           wget -q -O "$TARGET_FILE" "$DOWNLOAD_URL"
           log "解压 $TARGET_FILE..."
@@ -83,7 +78,7 @@ jobs:
           log "更新完成，新版本: $TAG_NAME"
 
       - name: 提交更改
-        if: success() # 仅在更新成功时提交
+        if: success()
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "🔄 自动同步 Worker 版本: ${{ steps.check_update.outputs.tag_name || '未知' }}"
