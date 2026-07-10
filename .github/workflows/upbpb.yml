@@ -20,7 +20,7 @@ jobs:
   update:
     runs-on: ubuntu-latest
     env:
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true # 允许 Actions 兼容运行
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: 检出仓库
         uses: actions/checkout@v4
