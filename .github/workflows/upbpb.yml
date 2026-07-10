@@ -49,8 +49,10 @@ jobs:
             exit 1
           fi
 
-          TAG_NAME=$(echo "$RESPONSE" | jq -r '.[0].tag_name')
-          DOWNLOAD_URL=$(echo "$RESPONSE" | jq -r '.[0].assets[] | select(.name == "'"$TARGET_FILE"'") | .browser_download_url')
+          # 遍历整个 release 列表，找到第一个资产（assets）中包含 worker.zip 的正式版本
+          LATEST_VALID_RELEASE=$(echo "$RESPONSE" | jq '. | map(select(.assets[].name == "'"$TARGET_FILE"'")) | .[0]')
+          TAG_NAME=$(echo "$LATEST_VALID_RELEASE" | jq -r '.tag_name')
+          DOWNLOAD_URL=$(echo "$LATEST_VALID_RELEASE" | jq -r '.assets[] | select(.name == "'"$TARGET_FILE"'") | .browser_download_url')
 
           if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" == "null" ]; then
             log "ERROR: 未找到 $TARGET_FILE"
